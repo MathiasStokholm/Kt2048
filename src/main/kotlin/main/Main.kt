@@ -4,7 +4,6 @@ import org.openqa.selenium.*
 import org.openqa.selenium.chrome.ChromeDriver
 import rx.Observable
 import rx.schedulers.Schedulers
-import java.util.*
 
 // Top level constants
 val RUNS = 10
@@ -91,9 +90,9 @@ class Grid(tileList : List<Tile> = emptyList()) {
 
     fun score(): Int {
         val baseScore = tiles.map { it.value * it.value }.sum()
-        val maxTileDistance = tiles.sortedBy { it.value }.map { tile ->
-            (((tile.column shl 1) + (tile.row shl 1))) * tile.value
-        }.sum()
+        //val maxTileDistance = tiles.sortedBy { it.value }.map { tile ->
+        //    (((tile.column shl 1) + (tile.row shl 1))) * tile.value
+        //}.sum()
         //val tile = tiles.sortedBy { it.value }.last()
         //val bonus = ((tile.column shl 1) + (tile.row shl 1)) * tile.value
         return baseScore// + bonus// + (maxTileDistance * baseScore * 0.5).toInt()
@@ -114,15 +113,23 @@ class Grid(tileList : List<Tile> = emptyList()) {
                 .filter { it !in other.tiles }
                 .count() == 0
     }
+
+    fun copy(tileList: List<Tile>) = Grid(tileList)
 }
 
 fun main(args: Array<String>) {
     System.setProperty("webdriver.chrome.driver","C:\\Users\\gedemis\\IdeaProjects\\Kot2048\\chromedriver.exe");
 
-//    val grid = Grid(listOf(Tile(0,0,2), Tile(1,0,2), Tile(2,0,2), Tile(3,0,0)))
-//    println(grid)
-//    println()
-//    println(grid.move(Direction.RIGHT))
+    val grid = Grid(listOf(Tile(0,0,2), Tile(1,0,2), Tile(2,0,2), Tile(3,0,0)))
+    println(grid)
+    println()
+
+    //val rankedMove = getBestMove2(grid, 3)
+    //println(rankedMove)
+
+    //System.exit(0)
+
+    //println(grid.move(Direction.RIGHT))
 
     //val ged = recursiveMove(grid, 3).reversed()
     //println(grid.containedIn(grid))
@@ -150,7 +157,7 @@ fun main(args: Array<String>) {
             val currentGrid = Grid(queryResult.tiles)
             val compStartTime = System.currentTimeMillis()
 
-            val bestGuess = getBestMove(currentGrid, 7)
+            val bestGuess = getBestMove2(currentGrid, 4)
             if (bestGuess.second == 0) {
                 println("No directions to move! Ending game, computation took: ${System.currentTimeMillis() - compStartTime}")
                 break
@@ -313,5 +320,60 @@ fun recursiveMove(grid: Grid, depth: Int): List<Pair<Direction, Int>> {
 
         return bestPath.third + Pair(bestPath.first, bestPath.second)
     }
+}
+
+data class State(val grid: Grid, val depth: Int, val maxNode: Boolean = true)
+
+fun getBestMove2(grid: Grid, depth: Int): Pair<Direction, Int> {
+    return Observable.just(null).flatMap {
+        Observable.just(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN)
+                .subscribeOn(Schedulers.computation())
+                .map {
+                    val movedGrid = grid.move(it)
+                    val bestScore = value(State(movedGrid, depth))
+                    Pair(it, bestScore)
+                }
+    }.toList().toBlocking().single()
+            .sortedBy { it.second }
+            .last()
+}
+
+fun value(state: State): Int {
+    //println("Finding value with appro at depth ${state.depth}")
+    if (state.depth == 0) {
+        //println("Returning terminal value: ${state.grid.score()}")
+        return state.grid.score()
+    } else if (state.maxNode) {
+        return maxValue(state)
+    } else {
+        return expectedValue(state)
+    }
+}
+
+fun maxValue(state: State): Int {
+    //println("Finding max of values at depth ${state.depth}")
+    return listOf(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN)
+            .map { direction -> state.grid.move(direction) }
+            .filter { it.score() > 0 }
+            .map { state.copy(it, maxNode = false) }
+            .map { value(it) }
+            .sortedByDescending{ it }
+            .getOrElse(0, {0})
+}
+
+fun expectedValue(state: State): Int {
+    //println("Computing expected value at depth ${state.depth}")
+    return state.grid.tiles.mapIndexed { i, tile ->
+        if (tile.value != 0) {
+            0
+        } else {
+            listOf(Pair(2, 0.9), Pair(4, 0.1)).map {
+                val listCopy = state.grid.tiles.copyOf()
+                listCopy[i] = tile.copy(value = it.first)
+                val newGrid = Grid(listCopy.toList())
+                (value(state.copy(newGrid, depth = state.depth - 1, maxNode = true)) * it.second).toInt()
+            }.average().toInt()
+        }
+    }.filter { it != 0 }.average().toInt()
 }
 
