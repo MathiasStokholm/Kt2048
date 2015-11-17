@@ -4,9 +4,153 @@ import org.openqa.selenium.*
 import org.openqa.selenium.chrome.ChromeDriver
 import rx.Observable
 import rx.schedulers.Schedulers
+import java.math.BigInteger
 
 // Top level constants
 val RUNS = 10
+val log2 = Math.log(2.0)
+
+val row_left_table = Array(65536, {0})
+val row_right_table = Array(65536, {0})
+val col_up_table = Array(65536, {0})
+val col_down_table = Array(65536, {0})
+val score_table = Array(65536, {0})
+val heur_score_table = Array(65536, {0})
+
+// Heuristic scoring settings
+val SCORE_LOST_PENALTY = 200000.0
+val SCORE_MONOTONICITY_POWER = 4.0
+val SCORE_MONOTONICITY_WEIGHT = 47.0
+val SCORE_SUM_POWER = 3.5
+val SCORE_SUM_WEIGHT = 11.0
+val SCORE_MERGES_WEIGHT = 700.0
+val SCORE_EMPTY_WEIGHT = 270.0
+
+val ged = {
+    for (row in 0..65535) {
+        val line = arrayOf(
+            (row shr 0) and 0xf,
+            (row shr  4) and 0xf,
+            (row shr  8) and 0xf,
+            (row shr 12) and 0xf
+        )
+
+        // Score
+        var score = 0.0f
+        for (i in 0..3) {
+            val rank = line[i]
+            if (rank >= 2) {
+                // the score is the total sum of the tile and all intermediate merged tiles
+                score += (rank - 1) * (1 shl rank)
+            }
+        }
+        score_table[row] = score.toInt()
+
+
+        // Heuristic score
+        var sum = 0.0
+        var empty = 0
+        var merges = 0
+        var prev = 0
+        var counter = 0
+        for (i in 0..3) {
+            var rank = line[i]
+            sum += Math.pow(rank.toDouble(), SCORE_SUM_POWER)
+            if (rank == 0) {
+                empty++
+            } else {
+                if (prev == rank) {
+                    counter++
+                } else if (counter > 0) {
+                    merges += 1 + counter
+                    counter = 0
+                }
+                prev = rank
+                }
+            }
+        if (counter > 0) {
+            merges += 1 + counter
+        }
+
+        var monotonicity_left = 0.0
+        var monotonicity_right = 0.0
+        for (i in 1..3) {
+            if (line[i-1] > line[i]) {
+                monotonicity_left += Math.pow(line[i-1].toDouble(), SCORE_MONOTONICITY_POWER) - Math.pow(line[i].toDouble(), SCORE_MONOTONICITY_POWER)
+            } else {
+                monotonicity_right += Math.pow(line[i].toDouble(), SCORE_MONOTONICITY_POWER) - Math.pow(line[i-1].toDouble(), SCORE_MONOTONICITY_POWER)
+            }
+        }
+
+        heur_score_table[row] = (SCORE_LOST_PENALTY +
+                SCORE_EMPTY_WEIGHT * empty +
+                SCORE_MERGES_WEIGHT * merges -
+                SCORE_MONOTONICITY_WEIGHT * Math.min(monotonicity_left, monotonicity_right) - SCORE_SUM_WEIGHT * sum).toInt()
+
+        // execute a move to the left
+        var i = 0
+        while (i < 4) {
+            var j = i + 1
+            while (j < 4) {
+                if (line[j] != 0) break
+                ++j
+            }
+
+            if (j == 4) break // no more tiles to the right
+
+            if (line[i] == 0) {
+                line[i] = line[j]
+                line[j] = 0
+                i-- // retry this entry
+            } else if (line[i] == line[j]) {
+                if(line[i] != 0xf) {
+                    /* Pretend that 32768 + 32768 = 32768 (representational limit). */
+                    line[i]++;
+                }
+                line[j] = 0;
+            }
+            i++
+        }
+
+        val result = (line[0] shl 0) or
+        (line[1] shl 4) or
+        (line[2] shl 8) or
+        (line[3] shl 12)
+        val rev_result = reverse_row(result.toLong());
+        val rev_row = reverse_row(row.toLong());
+
+        row_left_table [    row] =         row xor result;
+        row_right_table[rev_row.toInt()] = rev_row.toInt() xor rev_result.toInt();
+        col_up_table   [    row] =         unpack_col(row.toLong()).toInt() xor unpack_col(result.toLong()).toInt();
+        col_down_table [rev_row.toInt()] = unpack_col(rev_row).toInt() xor unpack_col(rev_result).toInt();
+    }
+}.invoke()
+
+fun unpack_col(row: Long): Long {
+    val COL_MASK = 0x000F000F000F000FL;
+    val tmp = row;
+    return (tmp or (tmp shl 12) or (tmp shl 24) or (tmp shl 36)) and COL_MASK;
+}
+
+fun reverse_row(row: Long): Long {
+    return (row shr 12) or ((row shr 4) and 0x00F0) or ((row shl 4) and 0x0F00) or (row shl 12);
+}
+
+
+//fun transpose(x: Long): Long {
+//
+//    val ged = BigInteger("0xF0F00F0FF0F00F0FL")
+//
+//    val a1 = x and 0xF0F00F0FF0F00F0FL;
+//    val a2 = x and 0x0000F0F00000F0F0L;
+//    val a3 = x and 0x0F0F00000F0F0000L;
+//    val a = a1 or (a2 shl 12) or (a3 shr 12);
+//    val b1 = a and 0xFF00FF0000FF00FFL;
+//    val b2 = a and 0x00FF00FF00000000L;
+//    val b3 = a and 0x00000000FF00FF00L;
+//    return b1 or (b2 shr 24) or (b3 shl 24);
+//}
+
 
 data class Tile(val column: Int, val row: Int, val value: Int, val merged: Boolean = false) {
     operator fun plus(other: Tile): Tile {
@@ -32,6 +176,86 @@ enum class Direction(useColumn: Boolean, reverse: Boolean, key: Keys) {
     val moveAlongColumn = useColumn
     val reverseNeeded = reverse
     val key = key
+}
+
+data class NewGrid(val data: Long) {
+    val GRID_SIZE = 4;
+
+    constructor(tileList : List<Tile> = emptyList()) : this({
+        tileList.map {
+            val valueToStore = (Math.log(it.value.toDouble()) / log2 + 0.5).toLong()
+            val bitPosition = (it.row * 4 + it.column) * 4
+            valueToStore shl bitPosition
+        }.sum()
+    }.invoke())
+
+    fun execute_move_2(): NewGrid {
+        val ROW_MASK = 0xFFFFL;
+
+        var dataCopy = data
+
+        dataCopy = dataCopy xor ((row_left_table[((data shr 0) and ROW_MASK).toInt()]).toLong() shl 0);
+        dataCopy = dataCopy xor ((row_left_table[((data shr 16) and ROW_MASK).toInt()]).toLong() shl 16);
+        dataCopy = dataCopy xor ((row_left_table[((data shr 32) and ROW_MASK).toInt()]).toLong() shl 32);
+        dataCopy = dataCopy xor ((row_left_table[((data shr 48) and ROW_MASK).toInt()]).toLong() shl 48);
+        return copy(dataCopy);
+    }
+
+    fun execute_move_3(): NewGrid {
+        val ROW_MASK = 0xFFFFL;
+
+        var dataCopy = data
+
+        dataCopy = dataCopy xor ((row_right_table[((data shr 0) and ROW_MASK).toInt()]).toLong() shl 0);
+        dataCopy = dataCopy xor ((row_right_table[((data shr 16) and ROW_MASK).toInt()]).toLong() shl 16);
+        dataCopy = dataCopy xor ((row_right_table[((data shr 32) and ROW_MASK).toInt()]).toLong() shl 32);
+        dataCopy = dataCopy xor ((row_right_table[((data shr 48) and ROW_MASK).toInt()]).toLong() shl 48);
+        return copy(dataCopy);
+    }
+
+    /*fun moveList(part: Int): Pair<Int, Boolean> {
+        println("Moving part: $part")
+        var changed = false
+        for (i in (0..(GRID_SIZE - 1)).reversed()) {
+
+        }
+
+
+        for (index in part.indices.drop(1).reversed()) {
+            for (moves in 0 .. (part.size - 1 - index)) {
+                val current = part[index - 1 + moves]
+                if (current.value == 0)
+                    break
+
+                val next = part[index + moves]
+                if (next.value == 0) {
+                    changed = true
+                    part.set(index + moves, current + next)
+                    part.set(index - 1 + moves, current.reset())
+                } else if (!current.merged && !next.merged && current.value == next.value) {
+                    changed = true
+                    part.set(index + moves, current + next)
+                    part.set(index - 1 + moves, current.reset())
+                    break
+                }
+            }
+        }
+        println("Result: $part")
+        return Pair(part, changed)
+    }*/
+
+    fun print() {
+        var dataCopy = data
+        for (i in 0..(GRID_SIZE - 1)) {
+            for (j in 0..(GRID_SIZE - 1)) {
+                val powerVal = dataCopy and 0xf;
+                print("${if (powerVal == 0L) 0 else (1 shl powerVal.toInt())} ")
+                dataCopy = dataCopy shr 4
+            }
+            print("\n");
+        }
+        print("\n");
+    }
 }
 
 class Grid(tileList : List<Tile> = emptyList()) {
