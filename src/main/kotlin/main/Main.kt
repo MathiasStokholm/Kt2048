@@ -67,7 +67,7 @@ data class Row(val data: Int = 0) {
     }
 }
 
-fun newInstance(tileList : List<Tile> = emptyList()): NewGrid {
+fun newInstance(tileList : List<Tile> = emptyList()): Grid {
     val data1 = tileList.filter { it.row * 4 + it.column < 8 }.map {
         val valueToStore = encodeValue(it.value).toLong()
         val bitPosition = (it.row * 4 + it.column) * 5
@@ -80,13 +80,13 @@ fun newInstance(tileList : List<Tile> = emptyList()): NewGrid {
         valueToStore shl bitPosition
     }.sum()
 
-    return NewGrid(data1, data2)
+    return Grid(data1, data2)
 }
 
-data class NewGrid(val data1: Long, val data2: Long) {
+data class Grid(val data1: Long, val data2: Long) {
     val GRID_SIZE = 4;
 
-    fun move(direction: Direction): NewGrid {
+    fun move(direction: Direction): Grid {
         val (component1, component2) = if (!direction.moveAlongColumn) Pair(data1, data2) else {
             val transposedGrid = transpose()
             Pair(transposedGrid.data1, transposedGrid.data2)
@@ -105,7 +105,7 @@ data class NewGrid(val data1: Long, val data2: Long) {
          // Check whether move is valid
         val validMove = outputLists[0].second or outputLists[1].second or outputLists[2].second or outputLists[3].second
         return if (validMove) {
-            val newGrid = NewGrid(finalRows[0].data.toLong() or (finalRows[1].data.toLong() shl 20),
+            val newGrid = Grid(finalRows[0].data.toLong() or (finalRows[1].data.toLong() shl 20),
                     finalRows[2].data.toLong() or (finalRows[3].data.toLong() shl 20))
             if (!direction.moveAlongColumn) {
                 newGrid
@@ -113,7 +113,7 @@ data class NewGrid(val data1: Long, val data2: Long) {
                 newGrid.transpose()
             }
         } else {
-            NewGrid(0, 0)
+            Grid(0, 0)
         }
     }
 
@@ -146,7 +146,7 @@ data class NewGrid(val data1: Long, val data2: Long) {
         return Pair(dataCopy, changed)
     }
 
-    fun setTile(row: Int, column: Int, value: Int): NewGrid {
+    fun setTile(row: Int, column: Int, value: Int): Grid {
         val encodedValue = encodeValue(value).toLong()
         if (row * 4 + column < 8) {
             val bitPosition = (row * 4 + column) * 5
@@ -175,12 +175,12 @@ data class NewGrid(val data1: Long, val data2: Long) {
         return ((fromPart and (0x1FL shl bitPosition)) shr bitPosition)
     }
 
-    fun transpose(): NewGrid {
+    fun transpose(): Grid {
         val newData1 =  getTile(data1, 0) + (getTile(data1, 4) shl 5) + (getTile(data2, 0) shl 10) + (getTile(data2, 4) shl 15) +
                 (getTile(data1, 1) shl 20) + (getTile(data1, 5) shl 25) + (getTile(data2, 1) shl 30) + (getTile(data2, 5) shl 35)
         val newData2 =  getTile(data1, 2) + (getTile(data1, 6) shl 5) + (getTile(data2, 2) shl 10) + (getTile(data2, 6) shl 15) +
                 (getTile(data1, 3) shl 20) + (getTile(data1, 7) shl 25) + (getTile(data2, 3) shl 30) + (getTile(data2, 7) shl 35)
-        return NewGrid(newData1, newData2)
+        return Grid(newData1, newData2)
     }
 
     fun score(): Int {
@@ -197,7 +197,7 @@ data class NewGrid(val data1: Long, val data2: Long) {
         return score
     }
 
-    fun print(): NewGrid {
+    fun print(): Grid {
         print(toString())
         return this
     }
@@ -229,89 +229,6 @@ fun decodeValue(value: Int): Int {
     }
 }
 
-class Grid(tileList : List<Tile> = emptyList()) {
-    val GRID_SIZE = 4;
-
-    val tiles: Array<Tile> = {
-        val tempArray = Array(GRID_SIZE * GRID_SIZE, { i -> Tile(i / GRID_SIZE, i % GRID_SIZE, 0) })
-        tileList.forEach { tempArray.set(it.column * GRID_SIZE + it.row, it.copy(merged = false)) }
-        tempArray
-    }.invoke()
-
-    fun move(direction: Direction): Grid {
-        val outputLists = tiles.groupBy { if (direction.moveAlongColumn) it.column else it.row }
-                .map { it.value }
-                .map { if (direction.reverseNeeded) it.reversed() else it }
-                .map { moveList(it.toTypedArray())}
-                .map {
-                    if (direction.reverseNeeded) Pair(it.first.reversed().toTypedArray(), it.second)
-                    else it
-                }
-
-        // Check whether move is valid
-        val validMove = outputLists.map { it.second }.reduce { a, b -> a or b }
-        return if (validMove) {
-            Grid(outputLists.map { it.first }.flatMap { it.asList() })
-        } else {
-            Grid()
-        }
-    }
-
-    fun moveList(part: Array<Tile>): Pair<Array<Tile>, Boolean> {
-        //println("Moving part: ${part.map { it.toString() }}")
-        var changed = false
-        for (index in part.indices.drop(1).reversed()) {
-            for (moves in 0 .. (part.size - 1 - index)) {
-                val current = part[index - 1 + moves]
-                if (current.value == 0)
-                    break
-
-                val next = part[index + moves]
-                if (next.value == 0) {
-                    changed = true
-                    part.set(index + moves, current + next)
-                    part.set(index - 1 + moves, current.reset())
-                } else if (!current.merged && !next.merged && current.value == next.value) {
-                    changed = true
-                    part.set(index + moves, current + next)
-                    part.set(index - 1 + moves, current.reset())
-                    break
-                }
-            }
-        }
-        //println("Result: ${part.map { it.toString() }}")
-        return Pair(part, changed)
-    }
-
-    fun score(): Int {
-        val baseScore = tiles.map { it.value * it.value }.sum()
-        //val maxTileDistance = tiles.sortedBy { it.value }.map { tile ->
-        //    (((tile.column shl 1) + (tile.row shl 1))) * tile.value
-        //}.sum()
-        //val tile = tiles.sortedBy { it.value }.last()
-        //val bonus = ((tile.column shl 1) + (tile.row shl 1)) * tile.value
-        return baseScore// + bonus// + (maxTileDistance * baseScore * 0.5).toInt()
-    }
-
-    override fun toString(): String {
-        val builder = StringBuilder()
-        tiles.sortedBy { it.row }.forEachIndexed { i, tile ->
-            builder.append(tile)
-            if ((i + 1) % GRID_SIZE == 0 && i != tiles.size - 1)
-                builder.appendln()
-        }
-        return builder.toString()
-    }
-
-    fun containedIn(other: Grid): Boolean {
-        return tiles.filter { it.value != 0 }
-                .filter { it !in other.tiles }
-                .count() == 0
-    }
-
-    fun copy(tileList: List<Tile>) = Grid(tileList)
-}
-
 fun main(args: Array<String>) {
     System.setProperty("webdriver.chrome.driver","C:\\Users\\gedemis\\IdeaProjects\\Kot2048\\chromedriver.exe");
 
@@ -336,7 +253,7 @@ fun main(args: Array<String>) {
             val currentGrid = newInstance(queryResult.tiles)
             val compStartTime = System.currentTimeMillis()
 
-            val bestGuess = getBestMove2(currentGrid, 3)
+            val bestGuess = getBestMove(currentGrid, 3)
             if (bestGuess.second == 0) {
                 println("No directions to move! Ending game, computation took: ${System.currentTimeMillis() - compStartTime}")
                 break
@@ -424,75 +341,9 @@ fun JavascriptExecutor.getTilesOptimized(direction: Direction? = null): TileQuer
     return TileQuery(emptyList(), false)
 }
 
-//fun WebDriver.getTiles(): List<Tile> {
-//    val script = """
-//                    var tiles = document.getElementsByClassName('tile');
-//                    var arr = [];
-//                    for (var i = 0; i < tiles.length; i++) {
-//                        arr.push(tiles[i].getAttribute('class'));
-//                    }
-//                    return arr
-//                 """
-//
-//    // Execute lookup of grid elements in JS and return a list of class names that may then be parsed in Kotlin
-//    if (this is JavascriptExecutor) {
-//        val returnValue = executeScript(script)
-//
-//        // Above script will always return List<String>
-//        if (returnValue is List<*>) {
-//            return returnValue.filterIsInstance<String>().map {
-//                val nameParts = it.split(" ")
-//                val value = nameParts[1].split("-")[1].toInt()
-//                val column = nameParts[2].split("-")[2].toInt() - 1
-//                val row = nameParts[2].split("-")[3].toInt() - 1
-//                Tile(column, row, value)
-//            }.sortedByDescending{ it.value }.distinctBy { it.row + 10 * it.column }
-//        }
-//    }
-//    return emptyList()
-//}
-//
-//fun getBestMove(grid: Grid, depth: Int): Pair<Direction, Int> {
-//    return Observable.just(null).flatMap {
-//        Observable.just(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN)
-//                .subscribeOn(Schedulers.computation())
-//                .map {
-//                    val movedGrid = grid.move(it)
-//                    if (movedGrid.score() > 0) {
-//                        val result = recursiveMove(movedGrid, depth - 1)
-//                        Pair(it, result.mapIndexed { index, step -> step.second / (index + 1) }.sum() + movedGrid.score())
-//                        //Pair(it, result.sumBy { it.second } + movedGrid.score())
-//                        //Pair(it, movedGrid.score())
-//                    } else {
-//                        Pair(it, 0)
-//                    }
-//                }
-//    }.toList().toBlocking().single()
-//            .sortedBy { it.second }
-//            .last()
-//}
-//
-//fun recursiveMove(grid: Grid, depth: Int): List<Pair<Direction, Int>> {
-//    if (depth == 0) {
-//        return listOf(listOf(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN)
-//                .map { Pair(it, grid.move(it).score()) }
-//                .sortedBy { it.second }
-//                .last())
-//    } else {
-//        val bestPath = listOf(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN)
-//                .map { Pair(it, grid.move(it)) }
-//                .filter { it.second.score() > 0 }
-//                .map { Triple(it.first, it.second.score(), recursiveMove(it.second, depth - 1)) }
-//                .sortedBy { it.third.map { it.second }.sum() }
-//                .last()
-//
-//        return bestPath.third + Pair(bestPath.first, bestPath.second)
-//    }
-//}
+data class State(val grid: Grid, val depth: Int, val maxNode: Boolean = false)
 
-data class State(val grid: NewGrid, val depth: Int, val maxNode: Boolean = false)
-
-fun getBestMove2(grid: NewGrid, depth: Int): Pair<Direction, Int> {
+fun getBestMove(grid: Grid, depth: Int): Pair<Direction, Int> {
     return Observable.just(null).flatMap {
         Observable.just(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN)
                 .subscribeOn(Schedulers.computation())
@@ -533,7 +384,6 @@ fun maxValue(state: State): Int {
 
 fun expectedValue(state: State): Int {
     //println("Computing expected value at depth ${state.depth}")
-
     var count = 0
     var expectedValue = 0
     for (i in 0..3) {
@@ -550,60 +400,3 @@ fun expectedValue(state: State): Int {
     }
     return expectedValue / count
 }
-
-//data class State(val grid: Grid, val depth: Int, val maxNode: Boolean = true)
-//
-//fun getBestMove2(grid: Grid, depth: Int): Pair<Direction, Int> {
-//    return Observable.just(null).flatMap {
-//        Observable.just(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN)
-//                .subscribeOn(Schedulers.computation())
-//                .map {
-//                    val movedGrid = grid.move(it)
-//                    val bestScore = value(State(movedGrid, depth))
-//                    Pair(it, bestScore)
-//                }
-//    }.toList().toBlocking().single()
-//            .sortedBy { it.second }
-//            .last()
-//}
-//
-//fun value(state: State): Int {
-//    //println("Finding value with appro at depth ${state.depth}")
-//    if (state.depth == 0) {
-//        //println("Returning terminal value: ${state.grid.score()}")
-//        return state.grid.score()
-//    } else if (state.maxNode) {
-//        return maxValue(state)
-//    } else {
-//        return expectedValue(state)
-//    }
-//}
-//
-//fun maxValue(state: State): Int {
-//    //println("Finding max of values at depth ${state.depth}")
-//    return listOf(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN)
-//            .map { direction -> state.grid.move(direction) }
-//            .filter { it.score() > 0 }
-//            .map { state.copy(it, maxNode = false) }
-//            .map { value(it) }
-//            .sortedByDescending{ it }
-//            .getOrElse(0, {0})
-//}
-//
-//fun expectedValue(state: State): Int {
-//    //println("Computing expected value at depth ${state.depth}")
-//    return state.grid.tiles.mapIndexed { i, tile ->
-//        if (tile.value != 0) {
-//            0
-//        } else {
-//            listOf(Pair(2, 0.9), Pair(4, 0.1)).map {
-//                val listCopy = state.grid.tiles.copyOf()
-//                listCopy[i] = tile.copy(value = it.first)
-//                val newGrid = Grid(listCopy.toList())
-//                (value(state.copy(newGrid, depth = state.depth - 1, maxNode = true)) * it.second).toInt()
-//            }.average().toInt()
-//        }
-//    }.filter { it != 0 }.average().toInt()
-//}
-
-

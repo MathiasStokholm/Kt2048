@@ -19,36 +19,6 @@ public class GridTest {
     }
 
     @Test
-    fun testMove() {
-        val grid = Grid(listOf(Tile(0, 0, 2), Tile(1, 0, 2), Tile(2, 0, 2), Tile(3, 0, 0)))
-        val expectedGrid = Grid(listOf(Tile(2, 0, 2), Tile(3, 0, 4)))
-        assertTrue { grid.move(Direction.RIGHT).containedIn(expectedGrid) }
-
-        val startTime = System.currentTimeMillis()
-
-//        var lastGrid = Grid(listOf(Tile(0, 0, 2), Tile(1, 0, 2), Tile(2, 0, 2), Tile(3, 0, 0)))
-//        for (i in 0..100000) {
-//            lastGrid = when (i % 2) {
-//                0 -> lastGrid.move(Direction.RIGHT)
-//                else -> lastGrid.move(Direction.LEFT)
-//            }
-//        }
-//        println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
-    }
-
-    @Test
-    fun testCopyGrid() {
-        val grid = Grid(listOf(Tile(0, 0, 2), Tile(0, 1, 2), Tile(0, 2, 8), Tile(0, 3, 16)))
-
-        val startTime = System.currentTimeMillis()
-        var lastgrid = grid
-        for (i in 0..100000) {
-            lastgrid = lastgrid.copy(lastgrid.tiles.toList())
-        }
-        println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
-    }
-
-    @Test
     fun testRow() {
         val row = Row().set(0, encodeValue(32768)).set(2, encodeValue(2))
         println(row)
