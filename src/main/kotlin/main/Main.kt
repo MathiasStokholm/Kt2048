@@ -333,14 +333,13 @@ fun JavascriptExecutor.getTilesOptimized(direction: Direction? = null): TileQuer
 }
 
 data class State(val grid: Grid, val depth: Int, val maxNode: Boolean = false)
-data class SearchEngine(val transpositionTable: HashMap<Grid, Pair<Int, Int>>, var moves: Int, var cacheHits: Int)
-var engine = SearchEngine(HashMap<Grid, Pair<Int, Int>>(), 0, 0)
+data class SearchEngine(val transpositionTable: HashMap<Grid, Pair<Int, Int>> = HashMap<Grid, Pair<Int, Int>>(250000), var moves: Int = 0, var cacheHits: Int = 0)
+var engine = SearchEngine()
 
 fun getBestMove(grid: Grid, depth: Int): Triple<Direction, Int, SearchEngine> {
-    engine = SearchEngine(HashMap<Grid, Pair<Int, Int>>(), 4, 0)
+    engine = SearchEngine(moves = 4)
     return Observable.just(null).flatMap {
         Observable.just(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN)
-                //.subscribeOn(Schedulers.computation())
                 .map {
                     val movedGrid = grid.move(it)
                     if (movedGrid.score() <= 0) Pair(it, 0) else {
@@ -359,12 +358,10 @@ fun value(state: State): Int {
     //println("Finding value with appro at depth ${state.depth}")
     if (state.depth == 0) {
         //println("Returning terminal value: ${state.grid.score()}")
-        val score = state.grid.score()
-        return score
+        return state.grid.score()
     }
     if (state.maxNode) {
-        val maxValue = maxValue(state)
-        return maxValue
+        return maxValue(state)
     } else {
         if (state.grid in engine.transpositionTable) {
             val (savedScore, depth) = engine.transpositionTable[state.grid]!!
