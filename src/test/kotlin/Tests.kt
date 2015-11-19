@@ -87,6 +87,18 @@ public class GridTest {
     }
 
     @Test
+    fun testScoreGrid() {
+        val grid = newInstance(listOf(Tile(0, 0, 2), Tile(0, 1, 2), Tile(0, 2, 8), Tile(0, 3, 16)))
+
+        val startTime = System.currentTimeMillis()
+        var score = 0
+        for (i in 0..100000) {
+            score += grid.score()
+        }
+        println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
+    }
+
+    @Test
     fun testMoveRow() {
         val grid = newInstance(listOf(Tile(0, 0, 2), Tile(1, 0, 2), Tile(2, 0, 4), Tile(3, 0, 8)))
 
@@ -112,22 +124,5 @@ public class GridTest {
             moveMap[Row(grid.data2 shr 20)]
         }
         println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
-    }
-
-    @Test
-    fun hashCodeTest() {
-        val hashCode = newInstance(listOf(Tile(0, 0, 2), Tile(1, 0, 2), Tile(2, 0, 4), Tile(3, 0, 8))).hashCode()
-
-        var matches = 0
-        for (i in 0..Long.MAX_VALUE) {
-            for (j in 0..Long.MAX_VALUE) {
-                if (hashCode == Grid(i, j).hashCode()) {
-                    matches++
-                    println("MATCH")
-                }
-            }
-        }
-
-        assertTrue { matches == 1 }
     }
 }
