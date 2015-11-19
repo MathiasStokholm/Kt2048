@@ -8,31 +8,22 @@ import rx.schedulers.Schedulers
 // Top level constants
 val RUNS = 10
 val log2 = Math.log(2.0)
+val GRID_SIZE = 4;
 
-data class Tile(val column: Int, val row: Int, val value: Int, val merged: Boolean = false) {
-    operator fun plus(other: Tile): Tile {
-        if (other.value == 0) {
-            return other.copy(value = value + other.value, merged = merged)
-        } else {
-            return other.copy(value = value + other.value, merged = true)
-        }
-    }
+// Construct maps of all possible moves (of a single row from left to right)
+val moveMap = (0..923521).asSequence().map { Row(it) }.toMap({it}, { it.move() })
+val moveMapReversed = (0..923521).asSequence().map { Row(it) }.toMap({it}, {
+    val (result, success) = it.reversed().move()
+    Pair(result.reversed(), success)
+})
 
-    fun reset(): Tile {
-        return Tile(column, row, 0)
-    }
+data class Tile(val column: Int, val row: Int, val value: Int)
 
-    override fun toString(): String {
-        return " $value "
-    }
-}
-
-enum class Direction(useColumn: Boolean, reverse: Boolean, key: Keys) {
-    LEFT(false, true, Keys.ARROW_LEFT), UP(true, true, Keys.UP),
-    RIGHT(false, false, Keys.ARROW_RIGHT), DOWN(true, false, Keys.ARROW_DOWN);
+enum class Direction(useColumn: Boolean, reverse: Boolean) {
+    LEFT(false, true), UP(true, true),
+    RIGHT(false, false), DOWN(true, false);
     val moveAlongColumn = useColumn
     val reverseNeeded = reverse
-    val key = key
 }
 
 data class Row(val data: Int = 0) {
@@ -60,6 +51,35 @@ data class Row(val data: Int = 0) {
                 (get(0) shl 15))
     }
 
+    fun move(): Pair<Row, Boolean> {
+        var dataCopy = this
+
+        //println("Moving part: $dataCopy")
+        var changed = false
+        for (index in (0..(GRID_SIZE - 1)).reversed()) {
+            for (moves in 0 .. (GRID_SIZE - 1 - index)) {
+                val current = dataCopy[index - 1 + moves]
+                if (current == 0)
+                    break
+
+                val next = dataCopy[index + moves]
+                if (next == 0) {
+                    changed = true
+                    dataCopy = dataCopy.set(index + moves, current + next)
+                    dataCopy = dataCopy.clear(index - 1 + moves)
+                } else if (current == next) {
+                    changed = true
+                    dataCopy = dataCopy.set(index + moves, current + 1)
+                    dataCopy = dataCopy.clear(index - 1 + moves)
+                    break
+                }
+            }
+        }
+
+        //println("Result: $dataCopy")
+        return Pair(dataCopy, changed)
+    }
+
     override fun toString(): String {
         val builder = StringBuilder()
         (0..3).map { builder.append("${get(it)} ") }
@@ -84,66 +104,34 @@ fun newInstance(tileList : List<Tile> = emptyList()): Grid {
 }
 
 data class Grid(val data1: Long, val data2: Long) {
-    val GRID_SIZE = 4;
-
     fun move(direction: Direction): Grid {
+        // Check if we need to transpose the grid before moving rows
         val (component1, component2) = if (!direction.moveAlongColumn) Pair(data1, data2) else {
             val transposedGrid = transpose()
             Pair(transposedGrid.data1, transposedGrid.data2)
         }
 
-        val partialData = listOf(Row(component1 and 0xFFFFF), Row(component1 shr 20), Row(component2 and 0xFFFFF), Row(component2 shr 20))
+        // Extract data into Rows
+        val partialData = listOf(Row(component1 and 0xFFFFF), Row((component1 shr 20) and 0xFFFFF), Row(component2 and 0xFFFFF), Row((component2 shr 20) and 0xFFFFF))
 
-        val outputLists = partialData
-            .map { if (direction.reverseNeeded) it.reversed() else it }
-            .map { moveList(it) }
-
-        val finalRows = if (!direction.reverseNeeded) outputLists.map { it.first } else {
-            outputLists.map { it.first.reversed() }
-        }
+        // Lookup moves or reversed moves based on direction
+        val finalRows = partialData.map { if (!direction.reverseNeeded) moveMap[it]!! else moveMapReversed[it]!! }
 
          // Check whether move is valid
-        val validMove = outputLists[0].second or outputLists[1].second or outputLists[2].second or outputLists[3].second
+        val validMove = finalRows[0].second or finalRows[1].second or finalRows[2].second or finalRows[3].second
         return if (validMove) {
-            val newGrid = Grid(finalRows[0].data.toLong() or (finalRows[1].data.toLong() shl 20),
-                    finalRows[2].data.toLong() or (finalRows[3].data.toLong() shl 20))
+            val newGrid = Grid(finalRows[0].first.data.toLong() or (finalRows[1].first.data.toLong() shl 20),
+                    finalRows[2].first.data.toLong() or (finalRows[3].first.data.toLong() shl 20))
             if (!direction.moveAlongColumn) {
                 newGrid
             } else {
+                // Transpose to move back to original coordinate system
                 newGrid.transpose()
             }
         } else {
+            // An invalid move will result in an empty grid with score 0
             Grid(0, 0)
         }
-    }
-
-    fun moveList(part: Row): Pair<Row, Boolean> {
-        var dataCopy = part
-
-       //println("Moving part: $dataCopy")
-        var changed = false
-        for (index in (0..(GRID_SIZE - 1)).reversed()) {
-            for (moves in 0 .. (GRID_SIZE - 1 - index)) {
-                val current = dataCopy[index - 1 + moves]
-                if (current == 0)
-                    break
-
-                val next = dataCopy[index + moves]
-                if (next == 0) {
-                    changed = true
-                    dataCopy = dataCopy.set(index + moves, current + next)
-                    dataCopy = dataCopy.clear(index - 1 + moves)
-                } else if (current == next) {
-                    changed = true
-                    dataCopy = dataCopy.set(index + moves, current + 1)
-                    dataCopy = dataCopy.clear(index - 1 + moves)
-                    break
-                }
-            }
-        }
-
-        //println("Result: $dataCopy")
-        return Pair(dataCopy, changed)
     }
 
     fun setTile(row: Int, column: Int, value: Int): Grid {
@@ -253,7 +241,7 @@ fun main(args: Array<String>) {
             val currentGrid = newInstance(queryResult.tiles)
             val compStartTime = System.currentTimeMillis()
 
-            val bestGuess = getBestMove(currentGrid, 3)
+            val bestGuess = getBestMove(currentGrid, 4)
             if (bestGuess.second == 0) {
                 println("No directions to move! Ending game, computation took: ${System.currentTimeMillis() - compStartTime}")
                 break

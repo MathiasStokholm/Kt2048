@@ -10,7 +10,6 @@ public class GridTest {
 
     @Before
     fun setUp() {
-        // set up the test case
     }
 
     @After
@@ -35,23 +34,23 @@ public class GridTest {
     }
 
     @Test
-    fun testMoveNew() {
+    fun testMove() {
         val grid = newInstance(listOf(Tile(0, 0, 2), Tile(0, 1, 2), Tile(0, 2, 8), Tile(0, 3, 16)))
         //grid.print()
         //grid.transpose().print().transpose().print()
         grid.print().move(Direction.DOWN).print().move(Direction.RIGHT).print().move(Direction.UP).print().move(Direction.LEFT).print()
         //grid.move(Direction.LEFT).move(Direction.RIGHT).print()
 
-//        val startTime = System.currentTimeMillis()
-//
-//        var lastGrid = newInstance(listOf(Tile(0, 0, 2), Tile(1, 0, 2), Tile(2, 0, 2), Tile(3, 0, 0)))
-//        for (i in 0..100000) {
-//            lastGrid = when (i % 2) {
-//                0 -> lastGrid.move(Direction.RIGHT)
-//                else -> lastGrid.move(Direction.LEFT)
-//            }
-//        }
-//        println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
+        val startTime = System.currentTimeMillis()
+
+        var lastGrid = newInstance(listOf(Tile(0, 0, 2), Tile(1, 0, 2), Tile(2, 0, 2), Tile(3, 0, 0)))
+        for (i in 0..100000) {
+            lastGrid = when (i % 2) {
+                0 -> lastGrid.move(Direction.RIGHT)
+                else -> lastGrid.move(Direction.LEFT)
+            }
+        }
+        println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
     }
 
     @Test
@@ -75,13 +74,41 @@ public class GridTest {
     }
 
     @Test
-    fun testCopyNewGrid() {
+    fun testCopyGrid() {
         val grid = newInstance(listOf(Tile(0, 0, 2), Tile(0, 1, 2), Tile(0, 2, 8), Tile(0, 3, 16)))
 
         val startTime = System.currentTimeMillis()
         var lastgrid = grid
         for (i in 0..100000) {
             lastgrid = lastgrid.copy(10, 100)
+        }
+        println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
+    }
+
+    @Test
+    fun testMoveRow() {
+        val grid = newInstance(listOf(Tile(0, 0, 2), Tile(1, 0, 2), Tile(2, 0, 4), Tile(3, 0, 8)))
+
+        val startTime = System.currentTimeMillis()
+        for (i in 0..100000) {
+            Row(grid.data1 and 0xFFFFF).move()
+            Row(grid.data1 shr 20).move()
+            Row(grid.data2 and 0xFFFFF).move()
+            Row(grid.data2 shr 20).move()
+        }
+        println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
+    }
+
+    @Test
+    fun testMoveRowLookup() {
+        val grid = newInstance(listOf(Tile(0, 0, 2), Tile(1, 0, 2), Tile(2, 0, 4), Tile(3, 0, 8)))
+
+        val startTime = System.currentTimeMillis()
+        for (i in 0..100000) {
+            moveMap[Row(grid.data1 and 0xFFFFF)]
+            moveMap[Row(grid.data1 shr 20)]
+            moveMap[Row(grid.data2 and 0xFFFFF)]
+            moveMap[Row(grid.data2 shr 20)]
         }
         println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
     }
