@@ -1,9 +1,11 @@
 package main
 
+import com.google.common.primitives.Longs
 import org.openqa.selenium.*
 import org.openqa.selenium.chrome.ChromeDriver
 import rx.Observable
 import rx.schedulers.Schedulers
+import java.util.*
 
 // Top level constants
 val RUNS = 10
@@ -134,7 +136,7 @@ data class Grid(val data1: Long, val data2: Long) {
         }
     }
 
-    fun setTile(row: Int, column: Int, value: Int): Grid {
+    fun copyAndSet(row: Int, column: Int, value: Int): Grid {
         val encodedValue = encodeValue(value).toLong()
         if (row * 4 + column < 8) {
             val bitPosition = (row * 4 + column) * 5
@@ -182,7 +184,7 @@ data class Grid(val data1: Long, val data2: Long) {
             score += tile * tile
         }
 
-        return score
+        return score + if (score > 0) 20000 else 0
     }
 
     fun print(): Grid {
@@ -241,13 +243,14 @@ fun main(args: Array<String>) {
             val currentGrid = newInstance(queryResult.tiles)
             val compStartTime = System.currentTimeMillis()
 
-            val bestGuess = getBestMove(currentGrid, 4)
+            val bestGuess = getBestMove(currentGrid, 5)
             if (bestGuess.second == 0) {
                 println("No directions to move! Ending game, computation took: ${System.currentTimeMillis() - compStartTime}")
                 break
             }
 
-            println("Moving in direction: ${bestGuess.first.name} with score: ${bestGuess.second}, computation took: ${System.currentTimeMillis() - compStartTime}")
+            println("Moving in direction: ${bestGuess.first.name} with score: ${bestGuess.second}, computation took: ${System.currentTimeMillis() - compStartTime}ms, " +
+                    "moves considered: ${bestGuess.third.moves}, cache size: ${bestGuess.third.transpositionTable.size}, cache hits: ${bestGuess.third.cacheHits}")
             move = bestGuess.first
 
             moves++
@@ -330,11 +333,14 @@ fun JavascriptExecutor.getTilesOptimized(direction: Direction? = null): TileQuer
 }
 
 data class State(val grid: Grid, val depth: Int, val maxNode: Boolean = false)
+data class SearchEngine(val transpositionTable: HashMap<Grid, Pair<Int, Int>>, var moves: Int, var cacheHits: Int)
+var engine = SearchEngine(HashMap<Grid, Pair<Int, Int>>(), 0, 0)
 
-fun getBestMove(grid: Grid, depth: Int): Pair<Direction, Int> {
+fun getBestMove(grid: Grid, depth: Int): Triple<Direction, Int, SearchEngine> {
+    engine = SearchEngine(HashMap<Grid, Pair<Int, Int>>(), 4, 0)
     return Observable.just(null).flatMap {
         Observable.just(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN)
-                .subscribeOn(Schedulers.computation())
+                //.subscribeOn(Schedulers.computation())
                 .map {
                     val movedGrid = grid.move(it)
                     if (movedGrid.score() <= 0) Pair(it, 0) else {
@@ -344,22 +350,37 @@ fun getBestMove(grid: Grid, depth: Int): Pair<Direction, Int> {
                 }
     }.toList().toBlocking().single()
             .sortedBy { it.second }
-            .last()
+            .takeLast(1)
+            .map { Triple(it.first, it.second, engine) }
+            .first()
 }
 
 fun value(state: State): Int {
     //println("Finding value with appro at depth ${state.depth}")
     if (state.depth == 0) {
         //println("Returning terminal value: ${state.grid.score()}")
-        return state.grid.score()
-    } else if (state.maxNode) {
-        return maxValue(state)
+        val score = state.grid.score()
+        return score
+    }
+    if (state.maxNode) {
+        val maxValue = maxValue(state)
+        return maxValue
     } else {
-        return expectedValue(state)
+        if (state.grid in engine.transpositionTable) {
+            val (savedScore, depth) = engine.transpositionTable[state.grid]!!
+            if (depth >= state.depth) {
+                engine.cacheHits++
+                return savedScore
+            }
+        }
+        val expectedValue = expectedValue(state)
+        engine.transpositionTable.set(state.grid, Pair(expectedValue, state.depth))
+        return expectedValue
     }
 }
 
 fun maxValue(state: State): Int {
+    engine.moves += 4
     //println("Finding max of values at depth ${state.depth}")
     return listOf(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN)
             .map { direction -> state.grid.move(direction) }
@@ -373,18 +394,18 @@ fun maxValue(state: State): Int {
 fun expectedValue(state: State): Int {
     //println("Computing expected value at depth ${state.depth}")
     var count = 0
-    var expectedValue = 0
+    var sum = 0
     for (i in 0..3) {
         for (j in 0..3) {
             val tile = state.grid.getTile(i, j)
             if (tile == 0) {
                 listOf(Pair(2, 0.9), Pair(4, 0.1)).map {
-                    val newGrid = state.grid.setTile(i, j, it.first)
-                    expectedValue += (value(state.copy(newGrid, depth = state.depth - 1, maxNode = true)) * it.second).toInt()
+                    val newGrid = state.grid.copyAndSet(i, j, it.first)
+                    sum += (value(state.copy(newGrid, depth = state.depth - 1, maxNode = true)) * it.second).toInt()
                     count++
                 }
             }
         }
     }
-    return expectedValue / count
+    return sum / count
 }
