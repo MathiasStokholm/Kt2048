@@ -31,7 +31,7 @@ fun RemoteWebDriver.setup(dimension: Dimension = Dimension(400, 700)) {
  */
 fun WebDriver.continueGame() {
     // Wait for "continue" button to appear, then click
-    Thread.sleep(1500)
+    Thread.sleep(700)
     findElement(By.className("keep-playing-button")).click()
 }
 

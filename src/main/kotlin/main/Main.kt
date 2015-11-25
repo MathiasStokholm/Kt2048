@@ -48,7 +48,7 @@ tailrec fun runGame(webDriver: RemoteWebDriver, direction: Direction? = null, mo
     val continueState = if (queryResult.won && !gameContinued) {
         webDriver.continueGame()
         true
-    } else false
+    } else gameContinued
 
     val currentGrid = newInstance(queryResult.tiles)
     val compStartTime = System.currentTimeMillis()
