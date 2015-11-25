@@ -74,10 +74,10 @@ data class Grid(val data1: Long, val data2: Long) {
         }
 
         val transposedGrid = transpose()
-        val score = monotocityMap[(data1 and 0xFFFFF).toInt()] + monotocityMap[((data1 shr 20) and 0xFFFFF).toInt()] +
-                monotocityMap[(data2 and 0xFFFFF).toInt()] + monotocityMap[((data2 shr 20) and 0xFFFFF).toInt()] +
-                monotocityMap[(transposedGrid.data1 and 0xFFFFF).toInt()] + monotocityMap[((transposedGrid.data1 shr 20) and 0xFFFFF).toInt()] +
-                monotocityMap[(transposedGrid.data2 and 0xFFFFF).toInt()] + monotocityMap[((transposedGrid.data2 shr 20) and 0xFFFFF).toInt()]
+        val score = scoreMap[(data1 and 0xFFFFF).toInt()] + scoreMap[((data1 shr 20) and 0xFFFFF).toInt()] +
+                scoreMap[(data2 and 0xFFFFF).toInt()] + scoreMap[((data2 shr 20) and 0xFFFFF).toInt()] +
+                scoreMap[(transposedGrid.data1 and 0xFFFFF).toInt()] + scoreMap[((transposedGrid.data1 shr 20) and 0xFFFFF).toInt()] +
+                scoreMap[(transposedGrid.data2 and 0xFFFFF).toInt()] + scoreMap[((transposedGrid.data2 shr 20) and 0xFFFFF).toInt()]
 
         return score
     }

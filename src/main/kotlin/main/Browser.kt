@@ -1,12 +1,12 @@
 package main
 
-import org.openqa.selenium.By
-import org.openqa.selenium.JavascriptExecutor
-import org.openqa.selenium.Keys
-import org.openqa.selenium.WebDriver
+import org.openqa.selenium.*
 import org.openqa.selenium.remote.RemoteWebDriver
 
-fun RemoteWebDriver.setup() {
+fun RemoteWebDriver.setup(dimension: Dimension = Dimension(400, 700)) {
+    manage().window().size = dimension
+    get("https://gabrielecirulli.github.io/2048/")
+
     val script = """
                     _func_tmp = GameManager.prototype.isGameTerminated;
                     GameManager.prototype.isGameTerminated = function() {

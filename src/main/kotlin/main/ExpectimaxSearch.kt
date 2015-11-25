@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 data class State(val grid: Grid, val depth: Int, val maxNode: Boolean = false)
 
-class ExpectimaxSearch(initialSize: Int = 2500000) {
+class ExpectimaxSearch(initialSize: Int = 450000) {
     val transpositionTable: MutableMap<Grid, Pair<Int, Int>> = ConcurrentHashMap(initialSize)
     val moves: AtomicInteger = AtomicInteger(0)
     val cacheHits: AtomicInteger = AtomicInteger(0)

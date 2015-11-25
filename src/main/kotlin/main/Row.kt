@@ -82,7 +82,7 @@ val moveMapReversed = (0..ROW_COMBINATIONS).map { Row(it) }.map {
 }.toTypedArray()
 
 // Construct maps of scores for all possible rows
-val monotocityMap = (0..ROW_COMBINATIONS).map { Row(it) }.map {
+val scoreMap = (0..ROW_COMBINATIONS).map { Row(it) }.map {
     var sum = 0;
     var empty = 0;
     var merges = 0;
