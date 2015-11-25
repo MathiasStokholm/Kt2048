@@ -118,11 +118,23 @@ public class GridTest {
 
         val startTime = System.currentTimeMillis()
         for (i in 0..100000) {
-            moveMap[Row(grid.data1 and 0xFFFFF)]
-            moveMap[Row(grid.data1 shr 20)]
-            moveMap[Row(grid.data2 and 0xFFFFF)]
-            moveMap[Row(grid.data2 shr 20)]
+            moveMap[Row(grid.data1 and 0xFFFFF).data]
+            moveMap[Row(grid.data1 shr 20).data]
+            moveMap[Row(grid.data2 and 0xFFFFF).data]
+            moveMap[Row(grid.data2 shr 20).data]
         }
         println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
+    }
+
+    @Test
+    fun testScoring() {
+        val grid = newInstance(listOf(Tile(0, 0, 16), Tile(1, 0, 8), Tile(2, 0, 4), Tile(3, 0, 2))).print()
+        println("Score: ${grid.score()}")
+
+        val badGrid = newInstance(listOf(Tile(0, 0, 8), Tile(1, 0, 4), Tile(2, 0, 16), Tile(3, 0, 2))).print()
+        println("Score: ${badGrid.score()}")
+
+        val verticalGrid = newInstance(listOf(Tile(0, 0, 8), Tile(0, 1, 4), Tile(0, 2, 16), Tile(0, 3, 2))).print()
+        println("Score: ${verticalGrid.score()}")
     }
 }

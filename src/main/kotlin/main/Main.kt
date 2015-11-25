@@ -1,23 +1,89 @@
 package main
 
-import com.google.common.primitives.Longs
 import org.openqa.selenium.*
 import org.openqa.selenium.chrome.ChromeDriver
 import rx.Observable
 import rx.schedulers.Schedulers
 import java.util.*
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 // Top level constants
 val RUNS = 10
 val log2 = Math.log(2.0)
 val GRID_SIZE = 4;
 
+val ROW_COMBINATIONS = 32 * 32 * 32 * 32
+
+// Heuristic scoring settings
+val SCORE_LOST_PENALTY = 200000.0;
+val SCORE_MONOTONICITY_POWER = 4.0;
+val SCORE_MONOTONICITY_WEIGHT = 47.0;
+val SCORE_SUM_POWER = 3.5;
+val SCORE_SUM_WEIGHT = 11.0;
+val SCORE_MERGES_WEIGHT = 700.0;
+val SCORE_EMPTY_WEIGHT = 270.0;
+
 // Construct maps of all possible moves (of a single row from left to right)
-val moveMap = (0..923521).asSequence().map { Row(it) }.toMap({it}, { it.move() })
-val moveMapReversed = (0..923521).asSequence().map { Row(it) }.toMap({it}, {
+val moveMap = (0..ROW_COMBINATIONS).map { Row(it).move() }.toTypedArray()
+val moveMapReversed = (0..ROW_COMBINATIONS).map { Row(it) }.map {
     val (result, success) = it.reversed().move()
     Pair(result.reversed(), success)
-})
+}.toTypedArray()
+val monotocityMap = (0..ROW_COMBINATIONS).map { Row(it) }.map {
+    var sum = 0;
+    var empty = 0;
+    var merges = 0;
+
+    var prev = 0;
+    var counter = 0;
+    for (i in 0..3) {
+        val rank = it[i];
+        sum += Math.pow(rank.toDouble(), 3.5).toInt();
+        if (rank == 0) {
+            empty++;
+        } else {
+            if (prev == rank) {
+                counter++;
+            } else if (counter > 0) {
+                merges += 1 + counter;
+                counter = 0;
+            }
+            prev = rank;
+        }
+    }
+    if (counter > 0) {
+        merges += 1 + counter;
+    }
+
+    var monotonicity_left = 0;
+    var monotonicity_right = 0;
+    for (i in 1 .. 3) {
+        if (it[i-1] > it[i]) {
+            monotonicity_left += (Math.pow(it[i-1].toDouble(), SCORE_MONOTONICITY_POWER) - Math.pow(it[i].toDouble(), SCORE_MONOTONICITY_POWER)).toInt();
+        } else {
+            monotonicity_right += (Math.pow(it[i].toDouble(), SCORE_MONOTONICITY_POWER) - Math.pow(it[i-1].toDouble(), SCORE_MONOTONICITY_POWER)).toInt();
+        }
+    }
+    val monotonicity = Math.min(monotonicity_left, monotonicity_right)
+
+    (SCORE_LOST_PENALTY  +
+            SCORE_EMPTY_WEIGHT * empty +
+            SCORE_MERGES_WEIGHT * merges -
+            SCORE_MONOTONICITY_WEIGHT * monotonicity -
+            SCORE_SUM_WEIGHT * sum).toInt()
+}.toTypedArray()
+val scoreMap = (0..ROW_COMBINATIONS).map { Row(it) }.map {
+    var score = 0.0f;
+    for (i in 0..3) {
+        val rank = it[i];
+        if (rank >= 2) {
+            // the score is the total sum of the tile and all intermediate merged tiles
+            score += (rank - 1) * (1 shl rank);
+        }
+    }
+    score
+}.toTypedArray()
 
 data class Tile(val column: Int, val row: Int, val value: Int)
 
@@ -117,7 +183,7 @@ data class Grid(val data1: Long, val data2: Long) {
         val partialData = listOf(Row(component1 and 0xFFFFF), Row((component1 shr 20) and 0xFFFFF), Row(component2 and 0xFFFFF), Row((component2 shr 20) and 0xFFFFF))
 
         // Lookup moves or reversed moves based on direction
-        val finalRows = partialData.map { if (!direction.reverseNeeded) moveMap[it]!! else moveMapReversed[it]!! }
+        val finalRows = partialData.map { if (!direction.reverseNeeded) moveMap[it.data] else moveMapReversed[it.data] }
 
          // Check whether move is valid
         val validMove = finalRows[0].second or finalRows[1].second or finalRows[2].second or finalRows[3].second
@@ -174,17 +240,16 @@ data class Grid(val data1: Long, val data2: Long) {
     }
 
     fun score(): Int {
-        var score = 0
-        for (i in 0..7) {
-            val tile = decodeValue(getTile(data1, i).toInt())
-            score += tile * tile
-        }
-        for (i in 0..7) {
-            val tile = decodeValue(getTile(data2, i).toInt())
-            score += tile * tile
+        if ((data1 or data2) == 0L) {
+            return 0
         }
 
-        return score + if (score > 0) 20000 else 0
+        val transposedGrid = transpose()
+        val rows = listOf(data1 and 0xFFFFF, (data1 shr 20) and 0xFFFFF, data2 and 0xFFFFF, (data2 shr 20) and 0xFFFFF)
+        val transposedRows = listOf(transposedGrid.data1 and 0xFFFFF, (transposedGrid.data1 shr 20) and 0xFFFFF, transposedGrid.data2 and 0xFFFFF, (transposedGrid.data2 shr 20) and 0xFFFFF)
+
+        val score = rows.map { monotocityMap[it.toInt()] }.sum() + transposedRows.map { monotocityMap[it.toInt()] }.sum()
+        return score
     }
 
     fun print(): Grid {
@@ -220,6 +285,9 @@ fun decodeValue(value: Int): Int {
 }
 
 fun main(args: Array<String>) {
+    //System.`in`.read()
+
+
     System.setProperty("webdriver.chrome.driver","C:\\Users\\gedemis\\IdeaProjects\\Kot2048\\chromedriver.exe");
 
     val webDriver = ChromeDriver()
@@ -243,7 +311,7 @@ fun main(args: Array<String>) {
             val currentGrid = newInstance(queryResult.tiles)
             val compStartTime = System.currentTimeMillis()
 
-            val bestGuess = getBestMove(currentGrid, 5)
+            val bestGuess = getBestMove(currentGrid, 4)
             if (bestGuess.second == 0) {
                 println("No directions to move! Ending game, computation took: ${System.currentTimeMillis() - compStartTime}")
                 break
@@ -333,13 +401,14 @@ fun JavascriptExecutor.getTilesOptimized(direction: Direction? = null): TileQuer
 }
 
 data class State(val grid: Grid, val depth: Int, val maxNode: Boolean = false)
-data class SearchEngine(val transpositionTable: HashMap<Grid, Pair<Int, Int>> = HashMap<Grid, Pair<Int, Int>>(250000), var moves: Int = 0, var cacheHits: Int = 0)
+data class SearchEngine(val transpositionTable: MutableMap<Grid, Pair<Int, Int>> = Collections.synchronizedMap(HashMap<Grid, Pair<Int, Int>>(2686964)),
+                        var moves: AtomicInteger = AtomicInteger(0), var cacheHits: AtomicInteger = AtomicInteger(0))
 var engine = SearchEngine()
 
 fun getBestMove(grid: Grid, depth: Int): Triple<Direction, Int, SearchEngine> {
-    engine = SearchEngine(moves = 4)
-    return Observable.just(null).flatMap {
-        Observable.just(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN)
+    engine = SearchEngine(moves = AtomicInteger(4))
+    return Observable.just(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN).flatMap {
+            Observable.just(it).subscribeOn(Schedulers.computation())
                 .map {
                     val movedGrid = grid.move(it)
                     if (movedGrid.score() <= 0) Pair(it, 0) else {
@@ -366,7 +435,7 @@ fun value(state: State): Int {
         if (state.grid in engine.transpositionTable) {
             val (savedScore, depth) = engine.transpositionTable[state.grid]!!
             if (depth >= state.depth) {
-                engine.cacheHits++
+                engine.cacheHits.andIncrement
                 return savedScore
             }
         }
@@ -377,7 +446,7 @@ fun value(state: State): Int {
 }
 
 fun maxValue(state: State): Int {
-    engine.moves += 4
+    engine.moves.addAndGet(4)
     //println("Finding max of values at depth ${state.depth}")
     return listOf(Direction.LEFT, Direction.UP, Direction.RIGHT, Direction.DOWN)
             .map { direction -> state.grid.move(direction) }
