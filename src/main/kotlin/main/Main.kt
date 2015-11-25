@@ -311,7 +311,7 @@ fun main(args: Array<String>) {
             val currentGrid = newInstance(queryResult.tiles)
             val compStartTime = System.currentTimeMillis()
 
-            val bestGuess = getBestMove(currentGrid, 4)
+            val bestGuess = getBestMove(currentGrid, 5)
             if (bestGuess.second == 0) {
                 println("No directions to move! Ending game, computation took: ${System.currentTimeMillis() - compStartTime}")
                 break
@@ -401,7 +401,7 @@ fun JavascriptExecutor.getTilesOptimized(direction: Direction? = null): TileQuer
 }
 
 data class State(val grid: Grid, val depth: Int, val maxNode: Boolean = false)
-data class SearchEngine(val transpositionTable: MutableMap<Grid, Pair<Int, Int>> = Collections.synchronizedMap(HashMap<Grid, Pair<Int, Int>>(2686964)),
+data class SearchEngine(val transpositionTable: MutableMap<Grid, Pair<Int, Int>> = ConcurrentHashMap<Grid, Pair<Int, Int>>(2686964),
                         var moves: AtomicInteger = AtomicInteger(0), var cacheHits: AtomicInteger = AtomicInteger(0))
 var engine = SearchEngine()
 
