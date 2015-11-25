@@ -31,12 +31,12 @@ fun RemoteWebDriver.setup(dimension: Dimension = Dimension(400, 700)) {
  */
 fun WebDriver.continueGame() {
     // Wait for "continue" button to appear, then click
-    Thread.sleep(750)
+    Thread.sleep(1500)
     findElement(By.className("keep-playing-button")).click()
 }
 
 data class TileQuery(val tiles: List<Tile>, val won: Boolean)
-fun JavascriptExecutor.getTilesOptimized(direction: Direction? = null): TileQuery {
+fun RemoteWebDriver.getTilesOptimized(direction: Direction? = null): TileQuery {
     val moveAction = when (direction) {
         Direction.UP -> "GameManager._instance.move(0)"
         Direction.RIGHT -> "GameManager._instance.move(1)"

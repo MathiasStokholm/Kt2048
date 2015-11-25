@@ -1,8 +1,8 @@
 package main
 
 import org.openqa.selenium.By
-import org.openqa.selenium.Dimension
 import org.openqa.selenium.chrome.ChromeDriver
+import org.openqa.selenium.remote.RemoteWebDriver
 
 // Top level constants
 val RUNS = 10
@@ -24,33 +24,9 @@ fun main(args: Array<String>) {
     webDriver.setup()
 
     val scores = (0 .. RUNS).map {
-        var move : Direction? = null;
         val startTime = System.currentTimeMillis()
-        var moves = 0;
-        var gameContinued = false
 
-        while (true) {
-            val queryResult = webDriver.getTilesOptimized(move)
-            if (queryResult.won && !gameContinued) {
-                webDriver.continueGame()
-                gameContinued = true
-            }
-
-            val currentGrid = newInstance(queryResult.tiles)
-            val compStartTime = System.currentTimeMillis()
-
-            val bestGuess = ExpectimaxSearch().getBestMove(currentGrid, 5)
-            if (bestGuess.second == 0) {
-                println("No directions to move! Ending game, computation took: ${System.currentTimeMillis() - compStartTime}")
-                break
-            }
-
-            println("Moving in direction: ${bestGuess.first.name} with score: ${bestGuess.second}, computation took: ${System.currentTimeMillis() - compStartTime}ms, " +
-                    "moves considered: ${bestGuess.third.moves}, cache size: ${bestGuess.third.transpositionTable.size}, cache hits: ${bestGuess.third.cacheHits}")
-            move = bestGuess.first
-
-            moves++
-        }
+        val moves = runGame(webDriver)
 
         val score = webDriver.findElementByClassName("score-container").text
         val time = (System.currentTimeMillis() - startTime)
@@ -65,4 +41,26 @@ fun main(args: Array<String>) {
     }
 
     webDriver.quit()
+}
+
+tailrec fun runGame(webDriver: RemoteWebDriver, direction: Direction? = null, moves: Int = 0, gameContinued: Boolean = false): Int {
+    val queryResult = webDriver.getTilesOptimized(direction)
+    val continueState = if (queryResult.won && !gameContinued) {
+        webDriver.continueGame()
+        true
+    } else false
+
+    val currentGrid = newInstance(queryResult.tiles)
+    val compStartTime = System.currentTimeMillis()
+
+    val bestGuess = ExpectimaxSearch().getBestMove(currentGrid, 5)
+    if (bestGuess.second == 0) {
+        println("No directions to move! Ending game, computation took: ${System.currentTimeMillis() - compStartTime}")
+        return moves
+    } else {
+        println("Moving in direction: ${bestGuess.first.name} with score: ${bestGuess.second}, computation took: ${System.currentTimeMillis() - compStartTime}ms, " +
+                "moves considered: ${bestGuess.third.moves}, cache size: ${bestGuess.third.transpositionTable.size}, cache hits: ${bestGuess.third.cacheHits}")
+        val move = bestGuess.first
+        return runGame(webDriver, move, moves + 1, continueState)
+    }
 }
