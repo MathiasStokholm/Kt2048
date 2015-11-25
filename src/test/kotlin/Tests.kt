@@ -88,14 +88,15 @@ public class GridTest {
 
     @Test
     fun testScoreGrid() {
+        val RUNS = 10000000
         val grid = newInstance(listOf(Tile(0, 0, 2), Tile(0, 1, 2), Tile(0, 2, 8), Tile(0, 3, 16)))
 
         val startTime = System.currentTimeMillis()
         var score = 0
-        for (i in 0..100000) {
+        for (i in 0..RUNS) {
             score += grid.score()
         }
-        println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
+        println("$RUNS runs took: ${System.currentTimeMillis() - startTime} ms")
     }
 
     @Test

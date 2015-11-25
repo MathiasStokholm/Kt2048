@@ -39,7 +39,7 @@ val monotocityMap = (0..ROW_COMBINATIONS).map { Row(it) }.map {
     var counter = 0;
     for (i in 0..3) {
         val rank = it[i];
-        sum += Math.pow(rank.toDouble(), 3.5).toInt();
+        sum += Math.pow(rank.toDouble(), SCORE_SUM_POWER).toInt();
         if (rank == 0) {
             empty++;
         } else {
@@ -72,17 +72,6 @@ val monotocityMap = (0..ROW_COMBINATIONS).map { Row(it) }.map {
             SCORE_MERGES_WEIGHT * merges -
             SCORE_MONOTONICITY_WEIGHT * monotonicity -
             SCORE_SUM_WEIGHT * sum).toInt()
-}.toTypedArray()
-val scoreMap = (0..ROW_COMBINATIONS).map { Row(it) }.map {
-    var score = 0.0f;
-    for (i in 0..3) {
-        val rank = it[i];
-        if (rank >= 2) {
-            // the score is the total sum of the tile and all intermediate merged tiles
-            score += (rank - 1) * (1 shl rank);
-        }
-    }
-    score
 }.toTypedArray()
 
 data class Tile(val column: Int, val row: Int, val value: Int)
@@ -245,10 +234,16 @@ data class Grid(val data1: Long, val data2: Long) {
         }
 
         val transposedGrid = transpose()
-        val rows = listOf(data1 and 0xFFFFF, (data1 shr 20) and 0xFFFFF, data2 and 0xFFFFF, (data2 shr 20) and 0xFFFFF)
-        val transposedRows = listOf(transposedGrid.data1 and 0xFFFFF, (transposedGrid.data1 shr 20) and 0xFFFFF, transposedGrid.data2 and 0xFFFFF, (transposedGrid.data2 shr 20) and 0xFFFFF)
 
-        val score = rows.map { monotocityMap[it.toInt()] }.sum() + transposedRows.map { monotocityMap[it.toInt()] }.sum()
+//        val rows = listOf(data1 and 0xFFFFF, (data1 shr 20) and 0xFFFFF, data2 and 0xFFFFF, (data2 shr 20) and 0xFFFFF)
+//        val transposedRows = listOf(transposedGrid.data1 and 0xFFFFF, (transposedGrid.data1 shr 20) and 0xFFFFF, transposedGrid.data2 and 0xFFFFF, (transposedGrid.data2 shr 20) and 0xFFFFF)
+//        val score = rows.map { monotocityMap[it.toInt()] }.sum() + transposedRows.map { monotocityMap[it.toInt()] }.sum()
+
+        val score = monotocityMap[(data1 and 0xFFFFF).toInt()] + monotocityMap[((data1 shr 20) and 0xFFFFF).toInt()] +
+                monotocityMap[(data2 and 0xFFFFF).toInt()] + monotocityMap[((data2 shr 20) and 0xFFFFF).toInt()] +
+                monotocityMap[(transposedGrid.data1 and 0xFFFFF).toInt()] + monotocityMap[((transposedGrid.data1 shr 20) and 0xFFFFF).toInt()] +
+                monotocityMap[(transposedGrid.data2 and 0xFFFFF).toInt()] + monotocityMap[((transposedGrid.data2 shr 20) and 0xFFFFF).toInt()]
+
         return score
     }
 
@@ -411,10 +406,10 @@ fun getBestMove(grid: Grid, depth: Int): Triple<Direction, Int, SearchEngine> {
             Observable.just(it).subscribeOn(Schedulers.computation())
                 .map {
                     val movedGrid = grid.move(it)
-                    if (movedGrid.score() <= 0) Pair(it, 0) else {
-                        val bestScore = value(State(movedGrid, depth))
-                        if (bestScore <= 0) Pair(it, movedGrid.score()) else Pair(it, bestScore)
-                    }
+                    if (movedGrid.score() <= 0)
+                        Pair(it, 0)
+                    else
+                        Pair(it, value(State(movedGrid, depth)))
                 }
     }.toList().toBlocking().single()
             .sortedBy { it.second }
