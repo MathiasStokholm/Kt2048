@@ -34,32 +34,7 @@ sourceSets {
   main.java.srcDirs += 'src/main/kotlin'
 }
 
-/*
-task downloadChromeDriverZip(type: Download) {
-  if (OperatingSystem.current().isMacOsX()) {
-    src 'http://chromedriver.storage.googleapis.com/2.19/chromedriver_mac32.zip'
-  }
-  else if (OperatingSystem.current().isLinux()) {
-    src 'http://chromedriver.storage.googleapis.com/2.19/chromedriver_linux64.zip'
-  }
-  else {
-    src 'http://chromedriver.storage.googleapis.com/2.19/chromedriver_win32.zip'
-  }
-  dest new File(buildDir, 'chromedriver.zip')
-  quiet false
-  overwrite true
-  onlyIfNewer true
-  compress false
-  println "Download Chrome driver: " + src + " to " + dest
+run {
+  /* Need to split the space-delimited value in the exec.args */
+  args System.getProperty("exec.args").split()
 }
-
-task downloadAndUnzipChromeDriver(dependsOn: downloadChromeDriverZip, type: Copy) {
-    println "Unzip Chrome driver: " + downloadChromeDriverZip.dest
-    from zipTree(downloadChromeDriverZip.dest)
-    into buildDir
-}
-
-task chrome(type: Test, dependsOn: downloadAndUnzipChromeDriver) {
-    println 'Use Chrome driver: ' + buildDir + '/chromedriver'
-    systemProperties['webdriver.chrome.driver'] = new File(buildDir, 'chromedriver')
-}*/
