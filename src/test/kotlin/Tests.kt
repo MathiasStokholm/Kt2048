@@ -9,49 +9,50 @@ import kotlin.test.assertTrue
 
 public class GridTest {
 
-    @Before
-    fun setUp() {
-    }
-
-    @After
-    fun tearDown() {
-        // tear down the test case
-    }
-
     @Test
     fun testRow() {
         val row = Row().set(0, encodeValue(32768)).set(2, encodeValue(2))
-        println(row)
         assertEquals(32768, decodeValue(row[0]))
         assertEquals(2, decodeValue(row[2]))
         val clearedRow = row.clear(0)
         assertEquals(0, decodeValue(clearedRow[0]))
         assertEquals(2, decodeValue(clearedRow[2]))
-        println(clearedRow)
         val reversedRow = row.reversed()
         assertEquals(32768, decodeValue(reversedRow[3]))
         assertEquals(2, decodeValue(reversedRow[1]))
-        println(reversedRow)
     }
 
     @Test
     fun testMove() {
         val grid = newInstance(listOf(Tile(0, 0, 2), Tile(0, 1, 2), Tile(0, 2, 8), Tile(0, 3, 16)))
-        //grid.print()
-        //grid.transpose().print().transpose().print()
-        grid.print().move(Direction.DOWN).print().move(Direction.RIGHT).print().move(Direction.UP).print().move(Direction.LEFT).print()
-        //grid.move(Direction.LEFT).move(Direction.RIGHT).print()
 
-        val startTime = System.currentTimeMillis()
+        // Make down move and check tiles
+        val downGrid = grid.move(Direction.DOWN)
+        assertEquals(encodeValue(0), downGrid.getTile(0, 0))
+        assertEquals(encodeValue(4), downGrid.getTile(1, 0))
+        assertEquals(encodeValue(8), downGrid.getTile(2, 0))
+        assertEquals(encodeValue(16), downGrid.getTile(3, 0))
 
-        var lastGrid = newInstance(listOf(Tile(0, 0, 2), Tile(1, 0, 2), Tile(2, 0, 2), Tile(3, 0, 0)))
-        for (i in 0..100000) {
-            lastGrid = when (i % 2) {
-                0 -> lastGrid.move(Direction.RIGHT)
-                else -> lastGrid.move(Direction.LEFT)
-            }
-        }
-        println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
+        // Make right move and check tiles
+        val rightGrid = downGrid.move(Direction.RIGHT)
+        assertEquals(encodeValue(0), rightGrid.getTile(0, 3))
+        assertEquals(encodeValue(4), rightGrid.getTile(1, 3))
+        assertEquals(encodeValue(8), rightGrid.getTile(2, 3))
+        assertEquals(encodeValue(16), rightGrid.getTile(3, 3))
+
+        // Make up move and check tiles
+        val upGrid = rightGrid.move(Direction.UP)
+        assertEquals(encodeValue(4), upGrid.getTile(0, 3))
+        assertEquals(encodeValue(8), upGrid.getTile(1, 3))
+        assertEquals(encodeValue(16), upGrid.getTile(2, 3))
+        assertEquals(encodeValue(0), upGrid.getTile(3, 3))
+
+        // Make left move and check tiles
+        val leftGrid = upGrid.move(Direction.LEFT)
+        assertEquals(encodeValue(4), leftGrid.getTile(0, 0))
+        assertEquals(encodeValue(8), leftGrid.getTile(1, 0))
+        assertEquals(encodeValue(16), leftGrid.getTile(2, 0))
+        assertEquals(encodeValue(0), leftGrid.getTile(3, 0))
     }
 
     @Test
@@ -75,67 +76,20 @@ public class GridTest {
     }
 
     @Test
-    fun testCopyGrid() {
-        val grid = newInstance(listOf(Tile(0, 0, 2), Tile(0, 1, 2), Tile(0, 2, 8), Tile(0, 3, 16)))
-
-        val startTime = System.currentTimeMillis()
-        var lastgrid = grid
-        for (i in 0..100000) {
-            lastgrid = lastgrid.copy(10, 100)
-        }
-        println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
-    }
-
-    @Test
-    fun testScoreGrid() {
-        val RUNS = 10000000
-        val grid = newInstance(listOf(Tile(0, 0, 2), Tile(0, 1, 2), Tile(0, 2, 8), Tile(0, 3, 16)))
-
-        val startTime = System.currentTimeMillis()
-        var score = 0
-        for (i in 0..RUNS) {
-            score += grid.score()
-        }
-        println("$RUNS runs took: ${System.currentTimeMillis() - startTime} ms")
-    }
-
-    @Test
     fun testMoveRow() {
         val grid = newInstance(listOf(Tile(0, 0, 2), Tile(1, 0, 2), Tile(2, 0, 4), Tile(3, 0, 8)))
 
-        val startTime = System.currentTimeMillis()
-        for (i in 0..100000) {
-            Row(grid.data1 and 0xFFFFF).move()
-            Row(grid.data1 shr 20).move()
-            Row(grid.data2 and 0xFFFFF).move()
-            Row(grid.data2 shr 20).move()
-        }
-        println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
-    }
-
-    @Test
-    fun testMoveRowLookup() {
-        val grid = newInstance(listOf(Tile(0, 0, 2), Tile(1, 0, 2), Tile(2, 0, 4), Tile(3, 0, 8)))
-
-        val startTime = System.currentTimeMillis()
-        for (i in 0..100000) {
-            moveMap[Row(grid.data1 and 0xFFFFF).data]
-            moveMap[Row(grid.data1 shr 20).data]
-            moveMap[Row(grid.data2 and 0xFFFFF).data]
-            moveMap[Row(grid.data2 shr 20).data]
-        }
-        println("100000 runs took: ${System.currentTimeMillis() - startTime} ms")
+        // Check that moves correspond to lookups in move map
+        assertTrue { Row(grid.data1 and 0xFFFFF).move() == moveMap[Row(grid.data1 and 0xFFFFF).data] }
+        assertTrue { Row(grid.data1 shr 20).move() == moveMap[Row(grid.data1 shr 20).data] }
+        assertTrue { Row(grid.data2 and 0xFFFFF).move() == moveMap[Row(grid.data2 and 0xFFFFF).data] }
+        assertTrue { Row(grid.data2 shr 20).move() == moveMap[Row(grid.data2 shr 20).data] }
     }
 
     @Test
     fun testScoring() {
-        val grid = newInstance(listOf(Tile(0, 0, 16), Tile(1, 0, 8), Tile(2, 0, 4), Tile(3, 0, 2))).print()
-        println("Score: ${grid.score()}")
-
-        val badGrid = newInstance(listOf(Tile(0, 0, 8), Tile(1, 0, 4), Tile(2, 0, 16), Tile(3, 0, 2))).print()
-        println("Score: ${badGrid.score()}")
-
-        val verticalGrid = newInstance(listOf(Tile(0, 0, 8), Tile(0, 1, 4), Tile(0, 2, 16), Tile(0, 3, 2))).print()
-        println("Score: ${verticalGrid.score()}")
+        val grid = newInstance(listOf(Tile(0, 0, 16), Tile(1, 0, 8), Tile(2, 0, 4), Tile(3, 0, 2)))
+        val badGrid = newInstance(listOf(Tile(0, 0, 8), Tile(1, 0, 4), Tile(2, 0, 16), Tile(3, 0, 2)))
+        assertTrue { badGrid.score() < grid.score() }
     }
 }

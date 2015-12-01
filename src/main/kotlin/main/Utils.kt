@@ -7,7 +7,10 @@ val log2 = Math.log(2.0)
  * @return the encoded value
  */
 fun encodeValue(value: Int): Int {
-    return (Math.log(value.toDouble()) / log2 + 0.5).toInt()
+    return when (value) {
+        0 -> 0
+        else -> (Math.log(value.toDouble()) / log2 + 0.5).toInt()
+    }
 }
 
 /**
