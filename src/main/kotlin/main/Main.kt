@@ -24,7 +24,7 @@ enum class Direction(useColumn: Boolean, reverse: Boolean) {
 
 fun main(args: Array<String>) {
     // Check if user needs help
-    if (args[0].contains("help")) {
+    if (args.isEmpty() || args[0].contains("help")) {
         System.out.println("Start Kt2048 by supplying a driver name and a driver binary location (chrome only)\ne.g.: \"chrome\" \"C:\\chromedriver.exe\"")
         return
     }
