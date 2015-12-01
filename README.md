@@ -9,6 +9,8 @@ A transposition table is shared across threads and used to save and lookup previ
 ## Running the AI
 To run the game, the program utilizes [Selenium](http://www.seleniumhq.org/) to interface with a browser of your choice.
 
+To execute Gradle tasks (such as running the program), navigate to the project directory and invoke either "gradlew.bat" for Windows or "./gradlew" for Linux/Mac
+
 ### Firefox (Requires working Firefox installation)
 Navigate to project directory and run
 
