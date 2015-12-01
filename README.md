@@ -1,7 +1,7 @@
 # Kt2048
 AI for the [2048](http://gabrielecirulli.github.io/2048/) game, implemented in [Kotlin](https://kotlinlang.org/)!
 
-This AI uses a Expectimax search routine, coupled with a heuristic scoring function courtesy of @nneonneo.
+This AI uses a Expectimax search routine, coupled with a heuristic scoring function courtesy of [@nneonneo](https://github.com/nneonneo/).
 The entire board (4x4 tiles) is encoded as two 64-bit integers. Moves are pre-calculated and stored in a lookup table for fast access.
 The search is parallelized by running subsearches from each top-level move on different threads, and ultimately combining the results.
 A transposition table is shared across threads and used to save and lookup previously scored grids.
