@@ -76,6 +76,7 @@ fun main(args: Array<String>) {
         Triple(score, moves, time)
     }
 
+    println("Completed all play-throughs! Best score was: ${scores.maxBy { it.first.toInt() }?.first }")
     webDriver.quit()
 }
 
